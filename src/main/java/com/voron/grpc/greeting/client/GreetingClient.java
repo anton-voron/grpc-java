@@ -4,18 +4,14 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Futures;
 import com.proto.greet.*;
-import io.grpc.CallOptions;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import com.google.common.util.concurrent.MoreExecutors;
-import io.grpc.MethodDescriptor;
-import io.grpc.stub.ClientCallStreamObserver;
-import io.grpc.stub.ClientResponseObserver;
 import io.grpc.stub.StreamObserver;
 
-import java.io.InputStream;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.Arrays;
 
 public class GreetingClient {
 
@@ -29,8 +25,8 @@ public class GreetingClient {
 //        syncGreet(channel);
 //        syncGreetManyTime(channel);
 //        asyncGreetManyTime(channel);
-        syncLongGreet(channel);
-
+//        syncLongGreet(channel);
+        greetEveryOne(channel);
 
         channel.shutdown();
     }
@@ -96,7 +92,7 @@ public class GreetingClient {
     }
 
     private static void asyncGreetManyTime(ManagedChannel channel) {
-        GreetServiceGrpc.GreetServiceStub client = GreetServiceGrpc.newStub(channel);
+        GreetServiceGrpc.GreetServiceStub asynClient = GreetServiceGrpc.newStub(channel);
         CountDownLatch latch = new CountDownLatch(1);
         Greeting greeting = Greeting.newBuilder()
                 .setFirstName("Paulo")
@@ -107,7 +103,7 @@ public class GreetingClient {
                 .setGreeting(greeting)
                 .build();
 
-       client.greetManyTimes(request, new StreamObserver<GreetManyTimesResponse> () {
+        asynClient.greetManyTimes(request, new StreamObserver<GreetManyTimesResponse> () {
 
            @Override
            public void onNext(GreetManyTimesResponse value) {
@@ -135,10 +131,10 @@ public class GreetingClient {
     // Client streaming
     private static void syncLongGreet(ManagedChannel channel) {
         //create async client
-        GreetServiceGrpc.GreetServiceStub client = GreetServiceGrpc.newStub(channel);
+        GreetServiceGrpc.GreetServiceStub asynClient = GreetServiceGrpc.newStub(channel);
         CountDownLatch latch = new CountDownLatch(1);
 
-        StreamObserver<LongGreetRequest> requestObserver = client.longGreet(new StreamObserver<LongGreetResponse>() {
+        StreamObserver<LongGreetRequest> requestObserver = asynClient.longGreet(new StreamObserver<LongGreetResponse>() {
             @Override
             public void onNext(LongGreetResponse value) {
                 // we get response form server
@@ -179,6 +175,57 @@ public class GreetingClient {
             e.printStackTrace();
         }
 
+    }
+
+    // BiDi streaming API
+    private static void greetEveryOne(ManagedChannel channel) {
+        //async client
+        GreetServiceGrpc.GreetServiceStub asynClient = GreetServiceGrpc.newStub(channel);
+        CountDownLatch latch = new CountDownLatch(1);
+
+
+       StreamObserver<GreetEveryOneRequest> reqeustObserver = asynClient.greetEveryOne(new StreamObserver<GreetEveryOneResponse>() {
+
+           @Override
+           public void onNext(GreetEveryOneResponse value) {
+               System.out.println("Response form server: " + value.getResult());
+           }
+
+           @Override
+           public void onError(Throwable t) {
+                latch.countDown();
+           }
+
+           @Override
+           public void onCompleted() {
+               System.out.println("Server is done sending data");
+               latch.countDown();
+           }
+       });
+
+        Arrays.asList("Stephan", "Jhon", "Mark", "Patricia").forEach(name -> {
+            System.out.println("Sending " + name);
+            Greeting greeting = Greeting.newBuilder()
+                    .setFirstName(name)
+                    .setLastName("Forename")
+                    .build();
+            GreetEveryOneRequest request = GreetEveryOneRequest.newBuilder()
+                    .setGreeting(greeting)
+                    .build();
+            reqeustObserver.onNext(request);
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+
+        reqeustObserver.onCompleted();
+        try {
+            latch.await(3, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
 

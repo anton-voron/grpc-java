@@ -73,6 +73,34 @@ public class GreetServerImpl extends GreetServiceGrpc.GreetServiceImplBase  {
             }
         };
         return requestObserver;
+    }
 
+
+    //DiDi API
+    @Override
+    public StreamObserver<GreetEveryOneRequest> greetEveryOne(StreamObserver<GreetEveryOneResponse> responseObserver) {
+        StreamObserver<GreetEveryOneRequest> requestObserver = new StreamObserver<GreetEveryOneRequest>() {
+
+            @Override
+            public void onNext(GreetEveryOneRequest value) {
+                String result = "Hello " + value.getGreeting().getFirstName();
+                GreetEveryOneResponse response = GreetEveryOneResponse.newBuilder()
+                        .setResult(result)
+                        .build();
+                responseObserver.onNext(response);
+            }
+
+            @Override
+            public void onError(Throwable t) {
+
+            }
+
+            @Override
+            public void onCompleted() {
+                responseObserver.onCompleted();
+            }
+        };
+
+        return requestObserver;
     }
 }
